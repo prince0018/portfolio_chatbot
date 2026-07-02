@@ -44,7 +44,8 @@ body {
 }
 
 button,
-textarea {
+textarea,
+input {
   font: inherit;
 }
 
@@ -291,12 +292,17 @@ h1 {
 
 .composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: end;
+  gap: 10px;
   padding: 16px;
   border-top: 1px solid var(--line);
   background: rgba(250, 253, 255, 0.92);
+}
+
+.composer-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
 }
 
 textarea {
@@ -317,6 +323,45 @@ textarea {
 textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 5px var(--focus-ring);
+}
+
+.attach-button {
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--button-secondary-border);
+  border-radius: 999px;
+  background: var(--button-secondary-bg);
+  color: var(--accent-strong);
+  box-shadow: 0 12px 30px var(--soft-shadow);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.attach-button:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  background: var(--button-secondary-hover);
+}
+
+.attach-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
+}
+
+.attach-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.1;
 }
 
 .send-button {
@@ -355,6 +400,63 @@ textarea:focus {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.3;
+}
+
+.attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.attachment-row[hidden] {
+  display: none;
+}
+
+.attachment-chip,
+.message-attachment {
+  min-width: 0;
+  border: 1px solid #a9dec9;
+  border-radius: 999px;
+  background: #effbf6;
+  color: #176b4d;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.attachment-chip {
+  overflow: hidden;
+  padding: 8px 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-attachment {
+  display: inline-flex;
+  max-width: 100%;
+  overflow: hidden;
+  margin-top: 10px;
+  padding: 7px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove-attachment {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 0 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.remove-attachment:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .typing {
@@ -452,12 +554,21 @@ textarea:focus {
     font-size: clamp(2.25rem, 18vw, 3.6rem);
   }
 
-  .composer {
+  .composer-main {
     grid-template-columns: 1fr;
+  }
+
+  .attach-button {
+    width: 100%;
   }
 
   .send-button {
     width: 100%;
     justify-content: center;
+  }
+
+  .attachment-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

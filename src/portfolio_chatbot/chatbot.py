@@ -14,8 +14,11 @@ from portfolio_chatbot.retrieval import RetrievedChunk, retrieve_similar_chunks
 
 
 SYSTEM_PROMPT = """You are Prince's portfolio chatbot.
-Answer questions using only the retrieved context from Prince's uploaded documents.
-If the context does not contain the answer, say that the uploaded documents do not include that information.
+Use Prince portfolio context for facts about Prince.
+Use uploaded file context only as user-provided document context, such as a job description.
+When asked about job fit, compare the uploaded file requirements with Prince portfolio context and call out matches, gaps, and preparation advice.
+When asked for interview preparation, create questions grounded in the uploaded file and Prince portfolio context when relevant.
+If the available context does not contain the answer, say that the documents do not include that information.
 Do not invent projects, skills, experience, dates, education, or contact details.
 Keep answers concise, helpful, and professional."""
 
@@ -39,16 +42,22 @@ class PortfolioChatbot:
         self.ingestion_settings = get_ingestion_settings()
         self.client = OpenAI(api_key=get_openai_api_key())
 
-    def ask(self, question: str, history: list[ChatTurn] | None = None) -> ChatResponse:
+    def ask(
+        self,
+        question: str,
+        history: list[ChatTurn] | None = None,
+        uploaded_chunks: list[RetrievedChunk] | None = None,
+    ) -> ChatResponse:
         history = history or []
-        retrieval_query = self._build_retrieval_query(question, history)
+        uploaded_chunks = uploaded_chunks or []
+        retrieval_query = self._build_retrieval_query(question, history, uploaded_chunks)
         chunks = retrieve_similar_chunks(
             retrieval_query,
             embedding_model=self.ingestion_settings.embedding_model,
             top_k=self.chat_settings.retrieval_top_k,
         )
 
-        if not chunks:
+        if not chunks and not uploaded_chunks:
             return ChatResponse(
                 answer=(
                     "I do not have any indexed document chunks yet. "
@@ -63,7 +72,15 @@ class PortfolioChatbot:
                 model=self.chat_settings.chat_model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": self._build_user_prompt(question, history, chunks)},
+                    {
+                        "role": "user",
+                        "content": self._build_user_prompt(
+                            question,
+                            history,
+                            chunks,
+                            uploaded_chunks,
+                        ),
+                    },
                 ],
             )
         except OpenAIError as exc:
@@ -73,18 +90,28 @@ class PortfolioChatbot:
 
         return ChatResponse(
             answer=answer.strip(),
-            sources=_unique_sources(chunks),
-            retrieved_chunks=chunks,
+            sources=_unique_sources([*chunks, *uploaded_chunks]),
+            retrieved_chunks=[*chunks, *uploaded_chunks],
         )
 
-    def _build_retrieval_query(self, question: str, history: list[ChatTurn]) -> str:
+    def _build_retrieval_query(
+        self,
+        question: str,
+        history: list[ChatTurn],
+        uploaded_chunks: list[RetrievedChunk],
+    ) -> str:
         recent_history = history[-self.chat_settings.max_history_turns :]
+        uploaded_excerpt = _format_uploaded_retrieval_excerpt(uploaded_chunks)
         if not recent_history:
+            if uploaded_excerpt:
+                return f"Uploaded file excerpt:\n{uploaded_excerpt}\n\nUser question:\n{question}"
             return question
 
         history_text = "\n".join(
             f"User: {turn.question}\nAssistant: {turn.answer}" for turn in recent_history
         )
+        if uploaded_excerpt:
+            return f"{history_text}\nUploaded file excerpt:\n{uploaded_excerpt}\nUser: {question}"
         return f"{history_text}\nUser: {question}"
 
     def _build_user_prompt(
@@ -92,13 +119,18 @@ class PortfolioChatbot:
         question: str,
         history: list[ChatTurn],
         chunks: list[RetrievedChunk],
+        uploaded_chunks: list[RetrievedChunk],
     ) -> str:
         recent_history = history[-self.chat_settings.max_history_turns :]
         conversation = _format_history(recent_history)
-        context = _format_context(chunks)
+        prince_context = _format_context(chunks) or "No Prince portfolio context was retrieved."
+        uploaded_context = _format_context(uploaded_chunks) or "No uploaded file was provided."
 
-        return f"""Retrieved context:
-{context}
+        return f"""Prince portfolio context:
+{prince_context}
+
+Uploaded file context:
+{uploaded_context}
 
 Recent conversation:
 {conversation}
@@ -106,7 +138,7 @@ Recent conversation:
 Question:
 {question}
 
-Answer using only the retrieved context. If the answer is not in the context, say so."""
+Answer using only the Prince portfolio context and uploaded file context. If the answer is not in the context, say so."""
 
 
 def _format_history(history: list[ChatTurn]) -> str:
@@ -124,6 +156,14 @@ def _format_context(chunks: list[RetrievedChunk]) -> str:
         formatted_chunks.append(f"[Context {index}: {source}]\n{chunk.text}")
 
     return "\n\n".join(formatted_chunks)
+
+
+def _format_uploaded_retrieval_excerpt(chunks: list[RetrievedChunk]) -> str:
+    if not chunks:
+        return ""
+
+    excerpt = "\n\n".join(chunk.text for chunk in chunks)
+    return excerpt[:4000]
 
 
 def _unique_sources(chunks: list[RetrievedChunk]) -> list[str]:

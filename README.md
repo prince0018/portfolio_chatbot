@@ -134,5 +134,27 @@ The frontend is served from `frontend/` and calls:
 
 ```text
 POST /api/chat
+POST /api/chat/file
 GET /api/status
 ```
+
+The web chat also supports temporary file context for a single session. Attach a `.pdf`,
+`.docx`, `.txt`, or `.md` file such as a job description, then ask questions like:
+
+```text
+Does this JD suit Prince's qualifications?
+Give me interview questions based on this JD.
+```
+
+Uploaded files are parsed for the current chat request and are not written into the
+persistent ChromaDB portfolio index.
+
+## Run Tests
+
+```bash
+python -m compileall src scripts
+python -m unittest discover -s tests -v
+```
+
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs these checks on every
+push and pull request.
