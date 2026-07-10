@@ -158,4 +158,4 @@ python -m unittest discover -s tests -v
 
 The GitHub Actions workflow in `.github/workflows/ci.yml` runs these checks on every
 push and pull request.
-.
+..
