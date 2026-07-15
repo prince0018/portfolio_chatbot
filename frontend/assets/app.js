@@ -1,10 +1,17 @@
 const form = document.querySelector("#chatForm");
 const input = document.querySelector("#questionInput");
+const fileInput = document.querySelector("#fileInput");
+const attachButton = document.querySelector("#attachButton");
+const attachmentRow = document.querySelector("#attachmentRow");
+const attachmentName = document.querySelector("#attachmentName");
+const removeAttachment = document.querySelector("#removeAttachment");
 const messages = document.querySelector("#messages");
 const statusPill = document.querySelector("#indexStatus");
 const quickPrompts = document.querySelectorAll("[data-question]");
 
 const history = [];
+const historyLimit = 4;
+let attachedFile = null;
 
 async function loadStatus() {
   try {
@@ -19,7 +26,7 @@ async function loadStatus() {
   }
 }
 
-function addMessage(role, text, sources = []) {
+function addMessage(role, text, sources = [], attachment = "") {
   const article = document.createElement("article");
   article.className = `message ${role}`;
 
@@ -34,6 +41,13 @@ function addMessage(role, text, sources = []) {
   const paragraph = document.createElement("p");
   paragraph.textContent = text;
   bubble.appendChild(paragraph);
+
+  if (attachment) {
+    const attachmentPill = document.createElement("div");
+    attachmentPill.className = "message-attachment";
+    attachmentPill.textContent = attachment;
+    bubble.appendChild(attachmentPill);
+  }
 
   if (sources.length) {
     const sourceList = document.createElement("div");
@@ -74,8 +88,11 @@ function addTypingMessage() {
 }
 
 function setBusy(isBusy) {
-  form.querySelector("button").disabled = isBusy;
+  form.querySelectorAll("button").forEach((button) => {
+    button.disabled = isBusy;
+  });
   input.disabled = isBusy;
+  fileInput.disabled = isBusy;
 }
 
 function resizeInput() {
@@ -83,17 +100,49 @@ function resizeInput() {
   input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
 }
 
+function renderAttachment() {
+  if (!attachedFile) {
+    attachmentRow.hidden = true;
+    attachmentName.textContent = "";
+    return;
+  }
+
+  attachmentName.textContent = attachedFile.name;
+  attachmentRow.hidden = false;
+}
+
+async function sendChatRequest(question) {
+  const recentHistory = history.slice(-historyLimit);
+
+  if (!attachedFile) {
+    return fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, history: recentHistory }),
+    });
+  }
+
+  const params = new URLSearchParams({
+    question,
+    history: JSON.stringify(recentHistory),
+    file_name: attachedFile.name,
+  });
+
+  return fetch(`/api/chat/file?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: attachedFile,
+  });
+}
+
 async function ask(question) {
-  addMessage("user", question);
+  const attachmentLabel = attachedFile ? `Attached: ${attachedFile.name}` : "";
+  addMessage("user", question, [], attachmentLabel);
   const typing = addTypingMessage();
   setBusy(true);
 
   try {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, history }),
-    });
+    const response = await sendChatRequest(question);
 
     const data = await response.json();
     if (!response.ok) {
@@ -130,6 +179,23 @@ input.addEventListener("keydown", (event) => {
   }
 });
 
+attachButton.addEventListener("click", () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener("change", () => {
+  const [file] = fileInput.files;
+  attachedFile = file || null;
+  renderAttachment();
+});
+
+removeAttachment.addEventListener("click", () => {
+  attachedFile = null;
+  fileInput.value = "";
+  renderAttachment();
+  input.focus();
+});
+
 for (const prompt of quickPrompts) {
   prompt.addEventListener("click", () => {
     const question = prompt.dataset.question;
@@ -139,3 +205,4 @@ for (const prompt of quickPrompts) {
 
 loadStatus();
 resizeInput();
+renderAttachment();
